@@ -8,9 +8,7 @@ BIGM = 1e15
 PENALTY = 1e6
 
 
-# ============================================================
-# 1. Leitura de instâncias
-# ============================================================
+# Leitura de instâncias
 
 def load_instance(path):
     """
@@ -38,9 +36,7 @@ def load_instance(path):
     return T, d, s, p, h, C
 
 
-# ============================================================
-# 2. Decoder: dado y -> X, I, custo
-# ============================================================
+# Decoder: dado y -> X, I, custo
 
 def decode_solution(y, d, C, s, p, h,
                     bigM=BIGM,
@@ -92,9 +88,7 @@ def decode_solution(y, d, C, s, p, h,
     return X, I, cost
 
 
-# ============================================================
-# 3. Construção gulosa-aleatória (fase GRASP)
-# ============================================================
+# Construção gulosa-aleatória (fase GRASP)
 
 def greedy_randomized_construction(d, C, s, p, h,
                                    alpha=0.3,
@@ -161,9 +155,7 @@ def greedy_randomized_construction(d, C, s, p, h,
     return y
 
 
-# ============================================================
-# 4. Busca local
-# ============================================================
+# Busca local
 
 def local_search(y, d, C, s, p, h,
                  time_limit=None,
@@ -204,9 +196,7 @@ def local_search(y, d, C, s, p, h,
     return y, best_cost
 
 
-# ============================================================
-# 5. Loop principal do GRASP
-# ============================================================
+# Loop principal do GRASP
 
 def grasp(d, C, s, p, h,
           max_iter=200,
@@ -259,9 +249,7 @@ def grasp(d, C, s, p, h,
     return best_y, X, I, best_cost
 
 
-# ============================================================
-# 6. Runner: aplicar GRASP em todas as instâncias
-# ============================================================
+# Runner: aplicar GRASP em todas as instâncias
 
 def parse_class_from_path(path, base_dir):
     """
@@ -363,14 +351,13 @@ def run_grasp_on_all_instances(base_dir="instancias_csilsp",
     else:
         print("Nenhuma instância encontrada.")
 
-
-# ============================================================
-# 7. main()
-# ============================================================
+# main
 
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    base_inst_dir = os.path.join(script_dir, "instancias_csilsp")
+    
+    project_root = os.path.dirname(script_dir)
+    base_inst_dir = os.path.join(project_root, "benchmark", "instancias_csilsp")
 
     # Parâmetros do GRASP
     MAX_ITER = 200
@@ -386,5 +373,5 @@ if __name__ == "__main__":
         L_max=L_MAX,
         seed=SEED,
         time_limit=TIME_LIMIT,
-        csv_output="resultados_grasp.csv"
+        csv_output="resultados_grasp.csv" 
     )

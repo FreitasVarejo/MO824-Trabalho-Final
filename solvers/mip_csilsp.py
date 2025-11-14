@@ -4,10 +4,7 @@ import csv
 
 import gurobipy as gp
 
-
-# ============================================================
-# 1. Leitura de instâncias (mesmo formato do GRASP)
-# ============================================================
+# Leitura de instâncias (mesmo formato do GRASP)
 
 def load_instance(path):
     with open(path) as f:
@@ -25,10 +22,7 @@ def load_instance(path):
 
     return T, d, s, p, h, C
 
-
-# ============================================================
-# 2. Modelo MIP do C-SILSP
-# ============================================================
+# Modelo MIP do C-SILSP
 
 def solve_csilsp_mip(d, s, p, h, C,
                      time_limit=1800,
@@ -110,10 +104,7 @@ def solve_csilsp_mip(d, s, p, h, C,
         "gap": mip_gap
     }
 
-
-# ============================================================
-# 3. Utilitários para rodar em lote
-# ============================================================
+# Utilitários para rodar em lote
 
 def parse_class_from_path(path, base_dir):
     rel = os.path.relpath(path, base_dir)
@@ -221,15 +212,14 @@ def run_mip_on_all_instances(base_dir="instancias_csilsp",
         print("Nenhuma instância encontrada.")
 
 
-# ============================================================
-# 4. main()
-# ============================================================
-
+# main()
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    base_inst_dir = os.path.join(script_dir, "instancias_csilsp")
+    
+    project_root = os.path.dirname(script_dir)
+    base_inst_dir = os.path.join(project_root, "benchmark", "instancias_csilsp")
 
-    TIME_LIMIT = 1800   # 30 minutos por instância
+    TIME_LIMIT = 1800  # 30 minutos por instância
     MIPGAP = None
 
     run_mip_on_all_instances(
@@ -237,4 +227,3 @@ if __name__ == "__main__":
         time_limit=TIME_LIMIT,
         mipgap=MIPGAP,
         csv_output="resultados_mip.csv"
-    )
