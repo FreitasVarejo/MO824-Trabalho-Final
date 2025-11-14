@@ -193,6 +193,7 @@ def local_search(y, d, C, s, p, h,
             else:
                 y[t] ^= 1  # desfaz flip
 
+    # Retorna o y otimizado localmente e seu custo
     return y, best_cost
 
 
@@ -210,6 +211,7 @@ def grasp(d, C, s, p, h,
     - cada iteração: construção gulosa-aleatória + busca local
     - se time_limit (segundos) for dado, respeita limite por instância
     - retorna melhor solução encontrada (y, X, I, custo)
+    - ***NOVO***: retorna log_convergencia = [(tempo, custo), ...]
     """
     if seed is not None:
         random.seed(seed)
@@ -217,27 +219,35 @@ def grasp(d, C, s, p, h,
     T = len(d)
     start_time = time.time()
 
+    # --- NOVO: Inicializa o log de convergência ---
+    log_convergencia = []
+
     # solução trivial: setup em todos os períodos (fallback factível, se existir)
     y_trivial = [1] * T
     _, _, cost_trivial = decode_solution(y_trivial, d, C, s, p, h)
     best_y = y_trivial[:]
     best_cost = cost_trivial
 
+    # --- NOVO: Salva a solução inicial (t=0) no log ---
+    # Adiciona um pequeno delta de tempo para evitar t=0 exato
+    log_convergencia.append( (time.time() - start_time + 1e-6, best_cost) )
+
     for it in range(max_iter):
         # checa limite de tempo
         if time_limit is not None and (time.time() - start_time) >= time_limit:
             break
 
-        y = greedy_randomized_construction(d, C, s, p, h,
-                                           alpha=alpha,
-                                           L_max=min(L_max, T))
+        y_construida = greedy_randomized_construction(d, C, s, p, h,
+                                                      alpha=alpha,
+                                                      L_max=min(L_max, T))
 
         # joga fora construções claramente infactíveis
-        _, _, cost_init = decode_solution(y, d, C, s, p, h)
+        _, _, cost_init = decode_solution(y_construida, d, C, s, p, h)
         if cost_init >= BIGM / 2:
             continue
 
-        y, cost = local_search(y, d, C, s, p, h,
+        # Passa o 'y' construído para a busca local
+        y, cost = local_search(y_construida[:], d, C, s, p, h, # Passa uma cópia
                                time_limit=time_limit,
                                start_time=start_time)
 
@@ -245,8 +255,14 @@ def grasp(d, C, s, p, h,
             best_cost = cost
             best_y = y[:]
 
+            # --- NOVO: Salva a nova melhor solução global no log ---
+            tempo_agora = time.time() - start_time
+            log_convergencia.append( (tempo_agora, best_cost) )
+
     X, I, _ = decode_solution(best_y, d, C, s, p, h)
-    return best_y, X, I, best_cost
+
+    # --- NOVO: Retorna o log de convergência ---
+    return best_y, X, I, best_cost, log_convergencia
 
 
 # Runner: aplicar GRASP em todas as instâncias
@@ -287,19 +303,40 @@ def run_grasp_on_all_instances(base_dir="instancias_csilsp",
                                L_max=10,
                                seed=42,
                                time_limit=1800,
-                               csv_output="resultados_grasp.csv"):
+                               csv_output="resultados_grasp.csv",
+                               log_output_dir="grasp_logs"): # <-- NOVO: Diretório para logs
     """
     Varre todas as instâncias sob base_dir, aplica GRASP e
     salva um CSV com: classe, arquivo, T, tau, var, custo, tempo, flag de factibilidade.
     time_limit é em segundos (default: 1800 = 30 min por instância).
+
+    ***NOVO***: Salva um log de convergência (tempo, custo) para CADA instância
+    no diretório 'log_output_dir'.
     """
     base_dir = os.path.abspath(base_dir)
     print(f"Rodando GRASP em instâncias de: {base_dir}")
     random.seed(seed)
 
-    rows = []
+    # --- NOVO: Define caminho para o CSV de resumo e diretório de logs ---
+    # O csv_output é relativo ao base_dir
+    csv_path = os.path.join(base_dir, csv_output)
+    # O log_output_dir também é relativo ao base_dir
+    log_dir = os.path.join(base_dir, log_output_dir)
+
+    os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
+    print(f"Salvando resumos em: {csv_path}")
+    print(f"Salvando logs de convergência em: {log_dir}")
+    # --------------------------------------------------------------------
+
+    rows = [] # Para o CSV de resumo
     for root, dirs, files in os.walk(base_dir):
+        # Ignora o próprio diretório de logs
+        if os.path.commonpath([root, log_dir]) == log_dir:
+            continue
+
         files = sorted(f for f in files if f.endswith(".txt"))
+
         for fname in files:
             path = os.path.join(root, fname)
             T, d, s, p, h, C = load_instance(path)
@@ -307,7 +344,9 @@ def run_grasp_on_all_instances(base_dir="instancias_csilsp",
             T_class, tau_class, var_class = parse_class_from_path(path, base_dir)
 
             t0 = time.time()
-            y, X, I, cost = grasp(
+
+            # --- NOVO: Captura o log_convergencia ---
+            y, X, I, cost, log_conv = grasp(
                 d=d, C=C, s=s, p=p, h=h,
                 max_iter=max_iter,
                 alpha=alpha,
@@ -322,8 +361,10 @@ def run_grasp_on_all_instances(base_dir="instancias_csilsp",
 
             print(f"{os.path.relpath(path, base_dir)} "
                   f"| T={T} tau={tau_class} var={var_class} "
-                  f"| cost={cost:.2f} factivel={factivel} time={elapsed:.3f}s")
+                  f"| cost={cost:.2f} factivel={factivel} time={elapsed:.3f}s "
+                  f"| log_points={len(log_conv)}")
 
+            # Adiciona ao CSV de resumo
             rows.append({
                 "classe": os.path.relpath(root, base_dir),
                 "arquivo": fname,
@@ -335,10 +376,25 @@ def run_grasp_on_all_instances(base_dir="instancias_csilsp",
                 "tempo_seg": elapsed
             })
 
-    # Salva CSV
+            # --- NOVO: Salva o log de convergência individual ---
+            classe_name = os.path.relpath(root, base_dir)
+            log_class_dir = os.path.join(log_dir, classe_name)
+            os.makedirs(log_class_dir, exist_ok=True)
+
+            log_fname = fname.replace(".txt", "_log.csv")
+            log_path = os.path.join(log_class_dir, log_fname)
+
+            try:
+                with open(log_path, "w", newline="") as f_log:
+                    writer_log = csv.writer(f_log)
+                    writer_log.writerow(["tempo_seg", "custo"]) # Header
+                    writer_log.writerows(log_conv)
+            except IOError as e:
+                print(f"ERRO ao salvar log {log_path}: {e}")
+            # ----------------------------------------------------
+
+    # Salva CSV de resumo
     if rows:
-        csv_path = os.path.join(base_dir, csv_output)
-        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
         with open(csv_path, "w", newline="") as f:
             writer = csv.DictWriter(
                 f,
@@ -347,7 +403,7 @@ def run_grasp_on_all_instances(base_dir="instancias_csilsp",
             )
             writer.writeheader()
             writer.writerows(rows)
-        print(f"\nResultados salvos em: {csv_path}")
+        print(f"\nResultados de resumo salvos em: {csv_path}")
     else:
         print("Nenhuma instância encontrada.")
 
@@ -355,7 +411,7 @@ def run_grasp_on_all_instances(base_dir="instancias_csilsp",
 
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     project_root = os.path.dirname(script_dir)
     base_inst_dir = os.path.join(project_root, "benchmark", "instancias_csilsp")
 
@@ -373,5 +429,6 @@ if __name__ == "__main__":
         L_max=L_MAX,
         seed=SEED,
         time_limit=TIME_LIMIT,
-        csv_output="resultados_grasp.csv" 
+        csv_output="resultados_grasp.csv", # O CSV de resumo
+        log_output_dir="grasp_logs" # O diretório para os logs de TTT
     )
