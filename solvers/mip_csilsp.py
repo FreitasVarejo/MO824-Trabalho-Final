@@ -215,7 +215,7 @@ def run_mip_on_all_instances(base_dir="instancias_csilsp",
 # main()
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     project_root = os.path.dirname(script_dir)
     base_inst_dir = os.path.join(project_root, "benchmark", "instancias_csilsp")
 
@@ -227,3 +227,4 @@ if __name__ == "__main__":
         time_limit=TIME_LIMIT,
         mipgap=MIPGAP,
         csv_output="resultados_mip.csv"
+	)
